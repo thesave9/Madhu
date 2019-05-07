@@ -1,0 +1,191 @@
+Configuring the Ansible master server:
+
+#!/bin/bash
+
+sudo apt-get update 
+sudo apt-add-repository ppa:ansible/ansible
+sudo apt-get install ansible -y
+sudo apt-get install python -y 
+sudo mkdir /home/ansible
+sudo useradd  -d /home/ansible -s /bin/bash -c "Ansible user" ansible
+echo ansible:root123 | /usr/sbin/chpasswd
+sudo chown -R ansible:ansible /home/ansible
+sudo echo -e "\n ansible ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sudo sed -i 's/##PubkeyAuthentication yes/PubkeyAuthentication yes/g' /etc/ssh/sshd_config
+sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+sudo apt-get update
+sudo apt-get install software-properties-common 
+
+Configuring the ansible client server:
+
+sudo apt-get install python -y 
+sudo mkdir /home/ansible
+sudo useradd  -d /home/ansible -s /bin/bash -c "Ansible user" ansible
+echo ansible:root123 | /usr/sbin/chpasswd
+sudo chown -R ansible:ansible /home/ansible
+sudo echo -e "\n ansible ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sudo sed -i 's/##PubkeyAuthentication yes/PubkeyAuthentication yes/g' /etc/ssh/sshd_config
+sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+
+
+
+==============================================================================================
+Ansible server :
+
+0. sudo su - ansible
+1. ssh-keygen 
+2. ssh-copy-id ansible@ec2-18-220-112-5.us-east-2.compute.amazonaws.com
+
+verification 
+
+ssh ansible@ec2-18-220-112-5.us-east-2.compute.amazonaws.com
+
+==============================================================================================
+
+Ansible server inventory file:
+
+file path /etc/ansible/hosts
+
+[WAS]
+ec2-18-220-112-5.us-east-2.compute.amazonaws.com
+ec2-3-17-133-229.us-east-2.compute.amazonaws.com
+
+
+[db]
+ec2-18-220-112-5.us-east-2.compute.amazonaws.com
+ec2-3-17-133-229.us-east-2.compute.amazonaws.com
+
+
+verification:
+
+
+
+==============================================================================================
+AD-HOC commands:
+
+Package commands:
+
+Installing using apt module:
+$ ansible aws -m apt -a "name=openjdk-8-jdk state=present" -s
+
+Installing using package module: 
+$ ansible aws -m apt -a "name=openjdk-8-jdk state=present" -s
+
+ansible aws -m apt -a "name=apache2 state=installed" -s
+
+Uninstalling using apt module:
+$ ansible aws -m apt -a "name=openjdk-8-jdk state=absent" -s
+
+Uninstalling using package module:
+$ ansible aws -m package -a "name=openjdk-8-jdk state=absent" -s
+
+Installing using tar files 
+$ ansible aws -m get_url -a "url=https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.9/bin/apache-tomcat-8.5.9.tar.gz dest=/tmp"
+ 
+ 
+verification:
+$ ansible aws -m shell -a "ls -ltha /tmp/*tar*"
+ 
+Extracting the tar to target machines
+$ansible aws -m unarchive -a "src=apache-tomcat-8.5.9.tar.gz dest=/tmp"
+ 
+ 
+==============================================================================================
+
+files : 
+
+Creating a empty file:
+$ ansible aws -m file -a "path=/tmp/madhu_babu state=touch"
+
+Verification:
+$ ansible aws -m shell -a "ls -lthra /tmp/madhu_babu"
+
+
+Copying a file to target machines:
+$ ansible aws -m copy -a "src=newfile dest=/tmp mode=777"
+
+Verification:
+$ ansible aws -m shell -a "ls -lthra /tmp/newfile"
+
+wget the url files:
+$ ansible aws -m get_url -a "url=https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.9/bin/apache-tomcat-8.5.9.tar.gz dest=/tmp"
+
+
+deleting a file:
+$ ansible aws -m file -a "path=/tmp/madhu_babu state=absent"
+
+==============================================================================================
+
+system module 
+
+Starting a service:
+$ ansible aws -m service -a "name=apache2 state=started"
+
+Stopping a service:
+$ ansible aws -m service -a "name=apache2 state=stopped" -s
+
+creating a user:
+ansible aws -m user -a "name=user1 state=present" -s
+
+Deleting a user:
+$ ansible aws -m user -a "name=user1 state=absent" -s
+
+Creating a cron job
+$ ansible aws -m cron -a "name=checkjob minute=0 hour=5 job='ls -lthra > /dev/null'"
+
+Verification:
+ansible aws -m shell -a "crontab -l"
+
+==============================================================================================
+
+
+Playbooks 
+
+
+
+---
+ - hosts: aws
+   sudo: yes
+   tasks:
+   - name: Installing tomcat
+     apt:
+      name: tomcat9
+      state: present
+   - name: Starting the tomcat service
+     service:
+      name: tomcat9
+      state: started
+
+
+---
+
+ - hosts: all
+   become: true
+   tasks:
+           #   - name: download the tar file
+           #     get_url:
+           #  url: https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.9/bin/apache-tomcat-8.5.9.tar.gz
+           #   dest: /opt
+   - name: extract the tar file
+     unarchive:
+      src: https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.9/bin/apache-tomcat-8.5.9.tar.gz
+      dest: /opt
+      remote_src: yes
+   - name: Copy the tomcat user xml file
+     template:
+       src: tomcat.j2
+       dest: /opt/apache-tomcat-8.5.9/conf/tomcat-users.xml
+       #  - name: Applying execute permissions
+       # file:
+       # path: /opt/apache-tomcat-8.5.9/bin/catalina.sh
+       # mode: "a+x"
+   - name: start the tomcat service
+     shell: "/opt/apache-tomcat-8.5.9/bin/./catalina.sh start"
+	 
+	 
+	 
+	 
